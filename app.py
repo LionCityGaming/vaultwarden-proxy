@@ -37,16 +37,16 @@ def get_vaultwarden_stats():
     if not ADMIN_TOKEN:
         raise Exception("ADMIN_TOKEN not configured")
 
-    headers = {
-        'Authorization': f'Bearer {ADMIN_TOKEN}',
-        'Content-Type': 'application/json'
+    # Vaultwarden admin API uses cookie-based authentication
+    cookies = {
+        'VW_ADMIN': ADMIN_TOKEN
     }
 
     try:
         # Get users data
         users_response = requests.get(
             f'{VAULTWARDEN_URL}/admin/users',
-            headers=headers,
+            cookies=cookies,
             timeout=10
         )
         users_response.raise_for_status()
@@ -94,7 +94,7 @@ def get_vaultwarden_stats():
         try:
             diag_response = requests.get(
                 f'{VAULTWARDEN_URL}/admin/diagnostics',
-                headers=headers,
+                cookies=cookies,
                 timeout=10
             )
             if diag_response.status_code == 200:
