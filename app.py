@@ -22,8 +22,46 @@ CACHE_TIMEOUT = int(os.environ.get('CACHE_TIMEOUT', 300))  # 5 minutes default
 # Session cache
 _stats_cache = {
     'stats': None,
-    'last_fetch': 0
+    'last_fetch': 0,
+    'session_cookie': None,
+    'cookie_expiry': 0
 }
+
+def get_admin_session():
+    """Authenticate with Vaultwarden admin and get session cookie"""
+    now = time.time()
+
+    # Check if we have a valid cached session
+    if (_stats_cache['session_cookie'] and
+        now < _stats_cache['cookie_expiry']):
+        logger.info("Using cached admin session")
+        return _stats_cache['session_cookie']
+
+    if not ADMIN_TOKEN:
+        raise Exception("ADMIN_TOKEN not configured")
+
+    # Authenticate with admin panel
+    auth_response = requests.post(
+        f'{VAULTWARDEN_URL}/admin',
+        data={'token': ADMIN_TOKEN},
+        timeout=10,
+        allow_redirects=False
+    )
+
+    if auth_response.status_code not in [200, 302]:
+        raise Exception(f"Admin authentication failed: {auth_response.status_code}")
+
+    # Extract session cookie
+    session_cookie = auth_response.cookies.get_dict()
+    if not session_cookie:
+        raise Exception("No session cookie received from Vaultwarden")
+
+    # Cache the session for 1 hour
+    _stats_cache['session_cookie'] = session_cookie
+    _stats_cache['cookie_expiry'] = now + 3600
+
+    logger.info("Successfully authenticated with Vaultwarden admin")
+    return session_cookie
 
 def get_vaultwarden_stats():
     """Fetch statistics from Vaultwarden admin API"""
@@ -34,13 +72,8 @@ def get_vaultwarden_stats():
         logger.info("Returning cached stats")
         return _stats_cache['stats']
 
-    if not ADMIN_TOKEN:
-        raise Exception("ADMIN_TOKEN not configured")
-
-    # Vaultwarden admin API uses cookie-based authentication
-    cookies = {
-        'VW_ADMIN': ADMIN_TOKEN
-    }
+    # Get authenticated session
+    cookies = get_admin_session()
 
     try:
         # Get users data
