@@ -111,6 +111,8 @@ def get_vaultwarden_stats():
         }
 
         for user in users_data:
+            user_id = user.get('id')
+
             # Check if user is active (try both field name variations)
             last_active = user.get('lastActive') or user.get('_LastActive')
             if last_active:
@@ -125,10 +127,35 @@ def get_vaultwarden_stats():
                     logger.debug(f"Error parsing last active date for user {user.get('email')}: {e} - raw value: {last_active}")
                     pass
 
-            # Count user's cipher items (Vaultwarden may not include this in basic user list)
-            # Try different possible field names
-            cipher_count = user.get('CipherCount', 0) or user.get('cipher_count', 0) or user.get('items_count', 0)
-            total_items += cipher_count
+            # Fetch individual user details to get cipher count
+            if user_id:
+                try:
+                    user_detail_response = requests.get(
+                        f'{VAULTWARDEN_URL}/admin/users/{user_id}',
+                        cookies=cookies,
+                        timeout=10
+                    )
+                    if user_detail_response.status_code == 200:
+                        user_detail = user_detail_response.json()
+
+                        # Log fields for first user only (when processing first user)
+                        if user == users_data[0]:
+                            logger.info(f"User detail fields: {list(user_detail.keys())}")
+
+                        # Look for cipher-related fields
+                        cipher_count = (user_detail.get('CipherCount') or
+                                      user_detail.get('cipher_count') or
+                                      user_detail.get('items') or
+                                      user_detail.get('Items') or 0)
+
+                        # If we get a list of items, count them
+                        if isinstance(cipher_count, list):
+                            cipher_count = len(cipher_count)
+
+                        total_items += cipher_count
+                        logger.debug(f"User {user.get('email')}: {cipher_count} items")
+                except Exception as e:
+                    logger.debug(f"Could not fetch details for user {user.get('email')}: {e}")
 
         # Note: Vaultwarden admin API doesn't expose item type breakdown per user
         # We'll need to get this from a different endpoint if available
