@@ -93,6 +93,10 @@ def get_vaultwarden_stats():
         # Calculate statistics
         total_users = len(users_data)
 
+        # Log first user structure for debugging
+        if users_data and len(users_data) > 0:
+            logger.info(f"Sample user fields: {list(users_data[0].keys())}")
+
         # Count active users (logged in within last 30 days)
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         active_users = 0
@@ -107,22 +111,23 @@ def get_vaultwarden_stats():
         }
 
         for user in users_data:
-            # Check if user is active
-            last_active = user.get('_LastActive')
+            # Check if user is active (try both field name variations)
+            last_active = user.get('lastActive') or user.get('_LastActive')
             if last_active:
                 try:
-                    # Vaultwarden returns timestamps in ISO format
-                    last_active_dt = datetime.fromisoformat(last_active.replace('Z', '+00:00'))
-                    # Make it naive for comparison
-                    last_active_naive = last_active_dt.replace(tzinfo=None)
-                    if last_active_naive > thirty_days_ago:
+                    # Parse the timestamp - Vaultwarden format: "2026-01-15 07:58:02 +08"
+                    # Remove timezone info for simplicity and parse
+                    last_active_str = last_active.split('+')[0].strip()
+                    last_active_dt = datetime.strptime(last_active_str, '%Y-%m-%d %H:%M:%S')
+                    if last_active_dt > thirty_days_ago:
                         active_users += 1
                 except (ValueError, AttributeError) as e:
-                    logger.debug(f"Error parsing last active date for user: {e}")
+                    logger.debug(f"Error parsing last active date for user {user.get('email')}: {e} - raw value: {last_active}")
                     pass
 
-            # Count user's cipher items
-            cipher_count = user.get('CipherCount', 0)
+            # Count user's cipher items (Vaultwarden may not include this in basic user list)
+            # Try different possible field names
+            cipher_count = user.get('CipherCount', 0) or user.get('cipher_count', 0) or user.get('items_count', 0)
             total_items += cipher_count
 
         # Note: Vaultwarden admin API doesn't expose item type breakdown per user
