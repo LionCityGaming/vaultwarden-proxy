@@ -32,21 +32,20 @@ To get your Vaultwarden admin token:
 Returns `OK` with status 200 if the service is running.
 
 ### GET /stats
-Returns Vaultwarden statistics in JSON format:
+Returns Vaultwarden user statistics in JSON format:
 
 ```json
 {
     "total_users": 5,
-    "active_users": 3,
-    "total_items": 247,
-    "logins": 0,
-    "notes": 0,
-    "cards": 0,
-    "identities": 0
+    "active_users": 3
 }
 ```
 
-**Note:** Currently, the Vaultwarden admin API provides total cipher counts but doesn't expose item type breakdowns via the admin endpoints. The `logins`, `notes`, `cards`, and `identities` fields are placeholders for future enhancement.
+Where:
+- `total_users`: Total number of registered users
+- `active_users`: Number of users active in the last 30 days (based on last login time)
+
+**Note:** The Vaultwarden admin API does not expose vault item counts (passwords, notes, etc.) through admin endpoints. Only user statistics are available for privacy/security reasons.
 
 ## Docker Usage
 
@@ -87,17 +86,14 @@ Add this to your Homepage `services.yaml`:
     description: Password Manager
     widget:
         type: customapi
-        url: http://your-server:8428/stats
+        url: http://your-server:5152/stats
         refreshInterval: 300000  # 5 minutes
         mappings:
             - field: total_users
               label: Users
               format: number
             - field: active_users
-              label: Active
-              format: number
-            - field: total_items
-              label: Items
+              label: Active (30d)
               format: number
 ```
 
@@ -122,9 +118,9 @@ python app.py
 
 ## Known Limitations
 
-- Item type breakdown (logins, notes, cards, identities) is currently not available through the Vaultwarden admin API
-- Active user detection relies on the `_LastActive` field from the admin API
-- Statistics are cached for the configured timeout period
+- **Vault item counts not available**: The Vaultwarden admin API does not expose vault item counts (passwords, notes, cards, identities) for privacy/security reasons. Only user statistics are available.
+- Active user detection relies on the `lastActive` field from the admin API
+- Statistics are cached for the configured timeout period (default: 5 minutes)
 
 ## License
 
