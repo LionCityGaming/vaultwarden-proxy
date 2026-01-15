@@ -41,20 +41,25 @@ def get_admin_session():
         raise Exception("ADMIN_TOKEN not configured")
 
     # Authenticate with admin panel
+    # Use form data for authentication
     auth_response = requests.post(
         f'{VAULTWARDEN_URL}/admin',
         data={'token': ADMIN_TOKEN},
+        headers={'Content-Type': 'application/x-www-form-urlencoded'},
         timeout=10,
         allow_redirects=False
     )
 
     if auth_response.status_code not in [200, 302]:
+        logger.error(f"Auth response status: {auth_response.status_code}")
+        logger.error(f"Auth response body: {auth_response.text[:200]}")
         raise Exception(f"Admin authentication failed: {auth_response.status_code}")
 
-    # Extract session cookie
+    # Extract session cookie (VW_ADMIN)
     session_cookie = auth_response.cookies.get_dict()
-    if not session_cookie:
-        raise Exception("No session cookie received from Vaultwarden")
+    if not session_cookie or 'VW_ADMIN' not in session_cookie:
+        logger.error(f"Cookies received: {session_cookie}")
+        raise Exception("No VW_ADMIN cookie received from Vaultwarden")
 
     # Cache the session for 1 hour
     _stats_cache['session_cookie'] = session_cookie
